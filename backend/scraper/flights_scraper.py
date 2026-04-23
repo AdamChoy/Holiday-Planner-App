@@ -2,7 +2,11 @@
 flights_scraper.py
 ------------------
 Fetches live flight prices using SerpAPI's Google Flights engine.
-Returns structured flight data for each destination.
+Prices are requested in GBP directly from SerpAPI so no
+currency conversion is needed.
+
+Usage:
+    from backend.scraper.flights_scraper import get_cheapest_flight
 """
 
 import os
@@ -15,31 +19,45 @@ load_dotenv()
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
 
+def _parse_duration(duration_mins: int) -> float:
+    """
+    Converts duration in minutes to decimal hours.
+
+    Args:
+        duration_mins: Duration in minutes e.g. 135
+
+    Returns:
+        Duration in decimal hours e.g. 2.25
+    """
+    if not duration_mins:
+        return None
+    return round(duration_mins / 60, 2)
+
+
 def get_cheapest_flight(
     origin_iata: str,
     destination_iata: str,
     departure_date: str = None,
     return_date: str = None,
     adults: int = 1,
-    currency: str = "GBP"
 ) -> dict:
     """
     Returns the cheapest available round trip flight between two airports.
+    Prices returned in GBP directly from SerpAPI.
 
     Args:
         origin_iata:      Departure airport code e.g. "LGW"
-        destination_iata: Destination airport code e.g. "BCN" (Barcelona)
+        destination_iata: Destination airport code e.g. "BCN"
         departure_date:   "YYYY-MM-DD" — defaults to 4 weeks from today
         return_date:      "YYYY-MM-DD" — defaults to 2 weeks after departure
         adults:           Number of passengers
-        currency:         Price currency (default GBP)
 
     Returns:
-        dict with flight_cost, duration, stops, airline, departure_date, return_date
+        dict with flight_cost, flight_duration_hrs, stops,
+        airline, departure_date, return_date
     """
     if departure_date is None:
         departure_date = (datetime.today() + timedelta(weeks=4)).strftime("%Y-%m-%d")
-
     if return_date is None:
         return_date = (datetime.today() + timedelta(weeks=6)).strftime("%Y-%m-%d")
 
@@ -50,7 +68,7 @@ def get_cheapest_flight(
         "outbound_date": departure_date,
         "return_date":   return_date,
         "type":          "1",           # 1 = round trip
-        "currency":      currency,
+        "currency":      "GBP",
         "adults":        adults,
         "hl":            "en",
         "api_key":       SERPAPI_API_KEY
@@ -72,14 +90,20 @@ def get_cheapest_flight(
             "return_date":         return_date
         }
 
-    # Cheapest is first result
+    # Cheapest is first result from SerpAPI
     cheapest = flights[0]
 
-    price         = cheapest.get("price")
-    duration_mins = cheapest.get("total_duration")
-    duration_hrs  = round(duration_mins / 60, 2) if duration_mins else None
-    airline       = cheapest.get("flights", [{}])[0].get("airline", "Unknown")
-    stops         = len(cheapest.get("flights", [])) - 1
+    # Price is already in GBP — just read it directly
+    price = cheapest.get("price")
+
+    # Duration in minutes → decimal hours
+    duration_hrs = _parse_duration(cheapest.get("total_duration"))
+
+    # Stops = number of segments minus 1
+    stops = len(cheapest.get("flights", [])) - 1
+
+    # Airline from first segment
+    airline = cheapest.get("flights", [{}])[0].get("airline", "Unknown")
 
     return {
         "flight_cost":         price,
