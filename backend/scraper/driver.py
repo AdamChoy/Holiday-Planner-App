@@ -1,21 +1,75 @@
-#  creating and configuring a Chrome browser instance that Selenium can control
-#  creates a Chrome browser that looks as human as possible, ready to be pointed at any website by your scrapers — and every scraper in your project will use it like this: 
-# from backend.scraper.driver import get_driver
+"""
+driver.py
+=========
+Purpose: Creates and configures a Chrome browser instance that Selenium can control.
+Automatically detects the installed Chrome version and downloads the matching 
+ChromeDriver — so it works on any machine without manual configuration.
 
-# driver = get_driver()
-# driver.get("https://www.numbeo.com")
-# # now scrape...
-# driver.quit()
+Usage:
+    from backend.scraper.driver import get_driver
 
-from selenium import webdriver  # controls Chrome
-from selenium.webdriver.chrome.options import Options  # Allows congifuration of the behaviour of Chrome
-from selenium.webdriver.chrome.service import Service  # Manages ChromeDriver process
-from webdriver_manager.chrome import ChromeDriverManager # Downloads the correct ChromeDriver version which matches your isntalled Chrome
+    driver = get_driver()
+    driver.get("https://www.numbeo.com")
+    # now scrape...
+    driver.quit()
+"""
+
+import subprocess
+import re
+from selenium import webdriver                              # Controls Chrome
+from selenium.webdriver.chrome.options import Options       # Configures Chrome behaviour
+from selenium.webdriver.chrome.service import Service       # Manages ChromeDriver process
+from webdriver_manager.chrome import ChromeDriverManager    # Auto-downloads correct ChromeDriver
+
+
+def get_chrome_version() -> str:
+    """
+    Detects the installed Chrome version on the current machine.
+    Works on Windows, Mac, and Linux so any teammate can run this.
+
+    Returns:
+        str: Chrome version string e.g. "147.0.7727.102"
+             Returns None if Chrome version cannot be detected.
+    """
+    try:
+        # --- Windows ---
+        output = subprocess.check_output(
+            r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version',
+            shell=True
+        ).decode()
+        version = output.strip().split()[-1]
+        print(f"[Driver] Chrome version detected: {version}")
+        return version
+
+    except Exception:
+        try:
+            # --- Mac ---
+            output = subprocess.check_output(
+                ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "--version"]
+            ).decode()
+            version = re.search(r"[\d.]+", output).group()
+            print(f"[Driver] Chrome version detected: {version}")
+            return version
+
+        except Exception:
+            try:
+                # --- Linux ---
+                output = subprocess.check_output(
+                    ["google-chrome", "--version"]
+                ).decode()
+                version = re.search(r"[\d.]+", output).group()
+                print(f"[Driver] Chrome version detected: {version}")
+                return version
+
+            except Exception as e:
+                print(f"[Driver] Could not detect Chrome version: {e}")
+                return None
 
 
 def get_driver(headless=False):
     """
     Returns a configured Selenium Chrome WebDriver instance.
+    Automatically matches ChromeDriver version to installed Chrome.
 
     Args:
         headless (bool): Run without browser window. Keep False while
@@ -26,9 +80,14 @@ def get_driver(headless=False):
         webdriver.Chrome: Configured Chrome driver instance
     """
     options = Options()
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+
+    # --- Window & Stability Settings ---
+    options.add_argument("--window-size=1920,1080")     # Standard desktop resolution
+    options.add_argument("--no-sandbox")                # Prevents Chrome from crashing
+    options.add_argument("--disable-dev-shm-usage")     # Prevents Chrome from crashing
+
+    # --- Bot Disguise Settings ---
+    # By default Selenium broadcasts that it's a bot — these lines hide that
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
@@ -38,15 +97,29 @@ def get_driver(headless=False):
         "Chrome/120.0.0.0 Safari/537.36"
     )
 
+    # --- Headless Mode ---
+    # Runs Chrome invisibly with no window — switch to True after deployment
     if headless:
-        options.add_argument("--headless=new") # headless allows the Chrome to run invisibly with no browser window. After deployment this will be turned True so it runs in the background
+        options.add_argument("--headless=new")
 
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
-    )  # lauches the browser
+    # --- Auto detect Chrome version and download matching ChromeDriver ---
+    chrome_version = get_chrome_version()
 
-    # Additional bot detection bypass
+    if chrome_version:
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager(driver_version=chrome_version).install()),
+            options=options
+        )
+    else:
+        # Fallback — let webdriver_manager pick the best available version
+        print("[Driver] Falling back to default ChromeDriver version")
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+
+    # --- Final Bot Detection Bypass ---
+    # Hides the navigator.webdriver JavaScript property that reveals automation
     driver.execute_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
     )
