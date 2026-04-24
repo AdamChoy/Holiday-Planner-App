@@ -3,6 +3,7 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from datetime import date, timedelta
+from PIL import Image
 
 st.set_page_config(
     page_title="Holiday Planner",
@@ -23,23 +24,45 @@ html, body, [class*="css"], .stApp {
     padding-bottom: 0.5rem !important;
     max-width: 100% !important;
 }
+
+/* Sidebar stays dark */
 section[data-testid="stSidebar"] {
     background-color: #1a1a1a !important;
 }
+
+/* Sidebar text stays cream */
 section[data-testid="stSidebar"] * {
     color: #F5F0D8 !important;
 }
-section[data-testid="stSidebar"] .stButton > button {
-    background: #F5C800 !important;
+
+/* Input boxes (date, number, text) */
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] textarea {
+    background-color: #FFFFFF    !important;
     color: #1a1a1a !important;
+    border-radius: 10px !important;
     border: none !important;
-    border-radius: 24px !important;
-    font-weight: 500 !important;
-    width: 100% !important;
-    margin-top: 1rem;
 }
-section[data-testid="stSidebar"] .stButton > button:hover {
-    background: #E8A020 !important;
+
+/* Selectbox + multiselect */
+section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    background-color: #F5F0D8 !important;
+    color: #1a1a1a !important;
+    border-radius: 10px !important;
+}
+
+/* Date picker box */
+section[data-testid="stSidebar"] div[data-baseweb="input"] > div {
+    background-color: #F5F0D8 !important;
+    border-radius: 10px !important;
+}
+
+/* Fix dropdown menu items */
+section[data-testid="stSidebar"] ul {
+    background-color: #F5F0D8 !important;
+}
+section[data-testid="stSidebar"] li {
+    color: #1a1a1a !important;
 }
 
 .hp-hero {
@@ -73,7 +96,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 .hp-sub {
     font-size: 0.95rem;
     color: #1a1a1a;
-    opacity: 0.45;
+    opacity: 0.95;
     font-weight: 300;
     margin-bottom: 2rem;
     line-height: 1.6;
@@ -228,7 +251,7 @@ DESTINATIONS = [
         "name": "Lisbon", "country": "Portugal", "lat": 38.7223, "lon": -9.1393,
         "temp": 27, "humidity": 60, "cloudiness": 20, "wind": 4.5,
         "hotel_avg": 95, "flight_gbp": 120, "nightlife_rating": 4.6, "restaurants": 950,
-        "tags": ["City nightlife", "Culture"],
+        "tags": ["Beach", "City nightlife", "Culture"],
         "desc": "Sunny coastal capital with rooftop bars, trams, and amazing food.",
         "score": 91,
     },
@@ -290,8 +313,17 @@ DESTINATIONS = [
     },
 ]
 
+# FIX: Map sidebar vibe labels to destination tag values
+VIBE_TAG_MAP = {
+    "Beach": "Beach",
+    "City": "City nightlife",
+    "Mountain": "Mountain",
+    "Island": "Island",
+}
 
 def filter_destinations(dests, temp_range, max_humidity, max_budget, vibe):
+    # FIX: Map vibe selections to actual tag values used in destinations
+    mapped_vibes = [VIBE_TAG_MAP.get(v, v) for v in vibe] if vibe else []
     results = []
     for d in dests:
         if not (temp_range[0] <= d["temp"] <= temp_range[1]):
@@ -300,7 +332,7 @@ def filter_destinations(dests, temp_range, max_humidity, max_budget, vibe):
             continue
         if d["hotel_avg"] > max_budget:
             continue
-        if vibe and not any(v in d["tags"] for v in vibe):
+        if mapped_vibes and not any(v in d["tags"] for v in mapped_vibes):
             continue
         results.append(d)
     return sorted(results, key=lambda x: x["score"], reverse=True)
@@ -315,7 +347,7 @@ with st.sidebar:
     st.markdown("Departure date")
     depart_date = st.date_input(
         "depart",
-        value=date.today() + timedelta(weeks=4),
+        value=date.today(),# + timedelta(weeks=4),
         min_value=date.today(),
         max_value=date.today() + timedelta(days=365),
         label_visibility="collapsed",
@@ -324,7 +356,7 @@ with st.sidebar:
     st.markdown("Return date")
     return_date = st.date_input(
         "return",
-        value=date.today() + timedelta(weeks=5),
+        value=date.today() + timedelta(weeks=1),
         min_value=date.today() + timedelta(days=1),
         max_value=date.today() + timedelta(days=366),
         label_visibility="collapsed",
@@ -336,29 +368,57 @@ with st.sidebar:
         st.markdown("<p style='color:#F5C800;font-size:12px;margin-top:4px;'>Return must be after departure.</p>", unsafe_allow_html=True)
     else:
         num_nights = (return_date - depart_date).days
-        st.markdown(f"<p style='color:#F5F0D8;font-size:12px;opacity:0.5;margin-top:4px;'>{num_nights} night{'s' if num_nights != 1 else ''}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#F5F0D8;font-size:12px;opacity:0.5;margin-top:4px;'>You are staying for: {num_nights} night{'s' if num_nights != 1 else ''}</p>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
 
+    # Max budget (£)
+    st.markdown("Max budget (£)")
+    max_budget = st.slider("bud", 100, 5000, 1000, label_visibility="collapsed")
+
+    # ── Travel party ─────────────────────────────────────────────
+    st.markdown("Number of people")
+    num_people = st.number_input(
+        "people",
+        min_value=1,
+        max_value=10,
+        value=2,
+        step=1,
+        label_visibility="collapsed",
+    )
+
+    st.markdown("Closest airport")
+    closest_airport = st.selectbox(
+        "airport",
+        [
+            "London Heathrow (LHR)",
+            "London Gatwick (LGW)",
+            "London Stansted (STN)",
+            "London Luton (LTN)",
+            "London City (LCY)",
+        ],
+        label_visibility="collapsed",
+    )
+
     st.markdown("Temperature range (°C)")
-    temp_range = st.slider("temp", 20, 40, (0, 35), label_visibility="collapsed")
+    # FIX: Default tuple values must be within the slider's min/max range (20–40)
+    temp_range = st.slider("temp", 20, 40, (20, 35), label_visibility="collapsed")
 
+    # FIX: Added max_humidity slider so it can be passed to filter_destinations
     st.markdown("Max humidity (%)")
-    max_humidity = st.slider("hum", 30, 100, 80, label_visibility="collapsed")
+    max_humidity = st.slider("humidity", 0, 100, 100, label_visibility="collapsed")
 
-    st.markdown("Max budget per night (£)")
-    max_budget = st.slider("bud", 30, 500, 150, label_visibility="collapsed")
-
-    st.markdown("Vibe")
+    st.markdown("Type of Holiday")
     vibe = st.multiselect(
         "vibe",
-        ["Beach", "Jungle", "City nightlife", "Island", "Culture"],
-        default=["Beach", "City nightlife"],
+        ["Beach", "City", "Mountain", "Island"],
+        default=["Beach"],
         label_visibility="collapsed",
     )
     st.button("Find destinations")
 
 
+# FIX: Pass all required arguments to filter_destinations
 filtered = filter_destinations(DESTINATIONS, temp_range, max_humidity, max_budget, vibe)
 num_nights = (return_date - depart_date).days if dates_valid else 0
 
@@ -368,33 +428,36 @@ left, right = st.columns([3, 1])
 with left:
     st.markdown(f"""
     <div class="hp-hero">
-        <div class="hp-headline">Find your next holiday.</div>
-        <div class="hp-sub">European destinations - <br>weather-matched, cost-analysed, safety approved.</div>
+        <div class="hp-headline">Find your next holiday</div>
+        <div class="hp-sub"><strong>Travel <i>anywhere</i> in Europe</strong><br>Trips that fit your wallet, the forecast, and your peace of mind.</div>
     </div>
     """, unsafe_allow_html=True)
-with right:
-    st.markdown(f"""
-    <div style="display:flex;align-items:flex-end;justify-content:flex-end;
-                padding:2.5rem 2rem 0 0;height:100%;">
-        {PIXEL_SVG}
-    </div>
-    """, unsafe_allow_html=True)
+# with right:
+#     st.markdown(f"""
+#     <div style="display:flex;align-items:flex-end;justify-content:flex-end;
+#                 padding:2.5rem 2rem 0 0;height:100%;">
+#         {PIXEL_SVG}
+#     </div>
+#     """, unsafe_allow_html=True)
 
 st.markdown(STRIPES_HTML, unsafe_allow_html=True)
 
 
 # ── Destination cards ─────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="hp-section">
-    <div class="hp-section-label">Top picks — {len(filtered)} found</div>
-    <div class="hp-section-title">Adventure. Sun. Nightlife.</div>
-""", unsafe_allow_html=True)
+# st.markdown(f"""
+# <div class="hp-section">
+#     <div class="hp-section-label">Top picks — {len(filtered)} found</div>
+#     <div class="hp-section-title">Adventure. Sun. Nightlife.</div>
+# """, unsafe_allow_html=True)
 
 # Date summary banner
+st.markdown("""
+<div style="padding-top: 2rem;">
+""", unsafe_allow_html=True)
 if not dates_valid:
     st.markdown('<div class="hp-date-error">Please set a valid return date before searching.</div>', unsafe_allow_html=True)
 elif num_nights > 0:
-    total_hotel_range = ""
+    airport_short = closest_airport.split("(")[-1].replace(")", "")
     st.markdown(f"""
     <div class="hp-date-banner">
         <div class="hp-date-item">
@@ -406,51 +469,27 @@ elif num_nights > 0:
             <span class="hp-date-label">Return</span>
             <span class="hp-date-value">{return_date.strftime("%d %b %Y")}</span>
         </div>
+        <div class="hp-date-item">
+            <span class="hp-date-label">From</span>
+            <span class="hp-date-value">{airport_short}</span>
+        </div>
+        <div class="hp-date-item">
+            <span class="hp-date-label">Travellers</span>
+            <span class="hp-date-value">{num_people} {"person" if num_people == 1 else "people"}</span>
+        </div>
         <span class="hp-date-nights">{num_nights} night{"s" if num_nights != 1 else ""}</span>
     </div>
     """, unsafe_allow_html=True)
-
-if not filtered:
-    st.markdown('<div class="hp-empty">No destinations match your filters.<br>Try widening your preferences.</div>', unsafe_allow_html=True)
-else:
-    cards_html = '<div class="hp-cards-grid">'
-    for d in filtered:
-        tags = "".join([f'<span class="hp-tag-pill">{t}</span>' for t in d["tags"]])
-        total_hotel = d["hotel_avg"] * num_nights if num_nights > 0 else None
-        total_cost = (d["flight_gbp"] * 2 + total_hotel) if total_hotel else None
-        cost_line = f'<br>💰 Est. total £{total_cost:,}' if total_cost else ""
-        cards_html += f"""
-        <div class="hp-card">
-            <div class="hp-card-tag">{d['country']}</div>
-            <div class="hp-card-name">{d['name']}</div>
-            <div class="hp-card-desc">{d['desc']}</div>
-            <div class="hp-card-score">{d['score']} / 100</div>
-            <div class="hp-card-meta">
-                🌡 {d['temp']}°C &nbsp; 💧 {d['humidity']}%<br>
-                🏨 £{d['hotel_avg']}/night &nbsp; ✈ £{d['flight_gbp']} return<br>
-                🍹 Nightlife {d['nightlife_rating']}/5 &nbsp; 🍽 {d['restaurants']} restaurants
-                {cost_line}
-            </div>
-            <div style="margin-top:10px;">{tags}</div>
-        </div>
-        """
-    cards_html += "</div>"
-    st.markdown(cards_html, unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-
 # ── Map ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="hp-section">
-    <div class="hp-section-label">Where in the world</div>
-    <div class="hp-section-title">Your destinations</div>
+    <div class="hp-section-title">Based on your preferences, here are your top destinations</div>
 </div>
 """, unsafe_allow_html=True)
 
 if filtered:
     m = folium.Map(
-        location=[filtered[0]["lat"], filtered[0]["lon"]],
+        location=[54.5260, 15.2551],  # Europe centre
         zoom_start=4,
         tiles="CartoDB positron"
     )
@@ -474,6 +513,43 @@ if filtered:
 
 else:
     st.markdown("<div class='hp-empty'>Adjust filters to see the map.</div>", unsafe_allow_html=True)
+
+
+# Destination cards
+if not filtered:
+    st.warning("No destinations match your filters. Try widening your preferences.")
+else:
+    # Use columns to create a grid layout (3 cards per row)
+    cols = st.columns(3)
+    
+    for i, d in enumerate(filtered):
+        # Calculate costs for the required cost analysis 
+        total_hotel = d["hotel_avg"] * num_nights if num_nights > 0 else 0
+        total_cost = (d["flight_gbp"] * 2 + total_hotel)
+        
+        # Determine which column to place the card in
+        with cols[i % 3]:
+            with st.container(border=True):
+                # Header Section
+                st.subheader(f"{d['name']}, {d['country']}")
+                st.caption(d['desc'])
+                
+                # Metrics Row (Weather & Ratings) 
+                m1, m2 = st.columns(2)
+                m1.metric("Temperature", f"{d['temp']}°C")
+                m2.metric("Nightlife", f"{d['nightlife_rating']}/5")
+                
+                # Detailed Cost Analysis 
+                with st.expander("View Details"):
+                    st.write(f"🏨 Hotel: £{d['hotel_avg']}/night")
+                    st.write(f"✈ Flight: £{d['flight_gbp']} return")
+                    st.divider()
+                    st.write(f"**Total Est: £{total_cost:,}**")
+                
+                # Tags [cite: 4]
+                st.write(" ".join([f"`{t}`" for t in d["tags"]]))
+                
+
 
 
 # ── Chart (below map) ─────────────────────────────────────────────────────────
@@ -521,7 +597,6 @@ if filtered:
         row = {
             "Destination": f"{d['name']}, {d['country']}",
             "Temp °C": d["temp"],
-            "Humidity %": d["humidity"],
             "Cloud %": d["cloudiness"],
             "Wind m/s": d["wind"],
             "Nightlife": d["nightlife_rating"],
@@ -539,10 +614,12 @@ if filtered:
 # ── Footer ────────────────────────────────────────────────────────────────────
 LINKEDIN_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="#000000" viewBox="0 0 24 24"><path d="M22.23 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.46c.98 0 1.77-.77 1.77-1.72V1.72C24 .77 23.21 0 22.23 0zM7.06 20.45H3.56V9h3.5v11.45zM5.31 7.43c-1.12 0-2.03-.92-2.03-2.05 0-1.13.91-2.05 2.03-2.05 1.12 0 2.03.92 2.03 2.05 0 1.13-.91 2.05-2.03 2.05zM20.45 20.45h-3.5v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.44-2.13 2.94v5.67h-3.5V9h3.36v1.56h.05c.47-.89 1.62-1.85 3.34-1.85 3.57 0 4.23 2.35 4.23 5.41v6.33z"/></svg>'
 
+import base64
+with open("frontend/assets/plane_pixel_art2.png", "rb") as f:
+    img_b64 = base64.b64encode(f.read()).decode()
+
+st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 FOOTER_CONTENT = f"""
-<div style="display:flex;justify-content:center;padding:1rem 0 0;">
-    {PIXEL_SVG}
-</div>
 <div class="hp-footer" style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;color:#000000 !important;">
     <div style="line-height:1.6; color:#000000 !important;">
         <div style="color:#000000 !important;">Rockborne Holiday Planner App © 2026</div>
@@ -551,11 +628,16 @@ FOOTER_CONTENT = f"""
                style="color:#000000 !important; text-decoration:none; display:flex; align-items:center; gap:6px;">
                 {LINKEDIN_ICON} Adam Choy
             </a>
-            <a href="https://www.linkedin.com/in/kanmani-v-a554a3212/" target="_blank"
+            <a href="https://www.linkedin.com/in/kanmani-vijay-8451a322b/" target="_blank"
                style="color:#000000 !important; text-decoration:none; display:flex; align-items:center; gap:6px;">
                 {LINKEDIN_ICON} Kanmani Vijay
             </a>
         </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;">
+        <img src="data:image/png;base64,{img_b64}"
+             width="64"
+             style="image-rendering:pixelated; image-rendering:crisp-edges;">
     </div>
     <div style="color:#000000 !important;">
         OpenWeatherMap · Google Places · Streamlit
