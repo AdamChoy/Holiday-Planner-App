@@ -5,7 +5,7 @@ PostgreSQL database connection and query functions.
 Uses psycopg2 for direct SQL queries.
 
 Usage:
-    from backend.database.db import get_all_destinations, get_cost_data
+    from backend.database.db import get_all_destinations, get_airports
 """
 
 import os
@@ -32,6 +32,10 @@ def get_connection():
     )
 
 
+# ================================================================
+# Destinations
+# ================================================================
+
 def get_all_destinations() -> list[dict]:
     """
     Returns all destinations joined with their cost data.
@@ -42,8 +46,9 @@ def get_all_destinations() -> list[dict]:
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Add DISTINCT ON to the query
             cur.execute("""
-                SELECT
+                SELECT DISTINCT ON (d.name)
                     d.id,
                     d.name,
                     d.country,
@@ -108,7 +113,7 @@ def insert_destination(destination: dict) -> int:
         destination: Destination dict
 
     Returns:
-        ID of inserted destination
+        ID of inserted destination or None if already exists
     """
     conn = get_connection()
     try:
@@ -137,13 +142,18 @@ def insert_destination(destination: dict) -> int:
         conn.close()
 
 
+# ================================================================
+# Cost Data
+# ================================================================
+
 def insert_cost_data(destination_id: int, cost_data: dict):
     """
     Inserts or updates cost data for a destination.
 
     Args:
         destination_id: ID from destinations table
-        cost_data:      Dict with avg_meal_cost, cost_of_living_index, safety_index
+        cost_data:      Dict with avg_meal_cost, cost_of_living_index,
+                        safety_index
     """
     conn = get_connection()
     try:
@@ -171,6 +181,101 @@ def insert_cost_data(destination_id: int, cost_data: dict):
     finally:
         conn.close()
 
+
+# ================================================================
+# Airports
+# ================================================================
+
+def get_airports() -> list[dict]:
+    """
+    Returns all UK departure airports for the frontend dropdown.
+    Ordered by region then city.
+
+    Returns:
+        List of airport dicts with name, iata_code, city, region
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT name, iata_code, city, region
+                FROM airports
+                ORDER BY region, city, name
+            """)
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+# ================================================================
+# Climate Data
+# ================================================================
+
+def get_climate_average(destination_id: int, month: int) -> dict:
+    """
+    Returns historical climate average for a destination and month.
+    Used when travel date is more than 5 days away.
+
+    Args:
+        destination_id: ID from destinations table
+        month:          Month number 1-12
+
+    Returns:
+        dict with avg_temp, avg_humidity, avg_rain_days, description
+        or None if not found
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    avg_temp,
+                    avg_humidity,
+                    avg_rain_days,
+                    description
+                FROM climate_data
+                WHERE destination_id = %s
+                AND month = %s
+            """, (destination_id, month))
+            row = cur.fetchone()
+            return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_full_climate(destination_id: int) -> list[dict]:
+    """
+    Returns all 12 months of climate data for a destination.
+    Used for the destination detail page climate chart.
+
+    Args:
+        destination_id: ID from destinations table
+
+    Returns:
+        List of 12 monthly climate dicts ordered by month
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    month,
+                    avg_temp,
+                    avg_humidity,
+                    avg_rain_days,
+                    description
+                FROM climate_data
+                WHERE destination_id = %s
+                ORDER BY month ASC
+            """, (destination_id,))
+            return [dict(row) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+# ================================================================
+# Live Data Cache
+# ================================================================
 
 def cache_live_data(destination_id: int, origin_iata: str, live_data: dict):
     """

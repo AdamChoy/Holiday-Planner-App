@@ -87,28 +87,33 @@ def _calculate_budget_score(
         return round(max(0.0, 5.0 - (overspend * 10)), 2)
 
 
-def _calculate_weather_score(avg_temp: float, min_temp: int) -> float:
+# Replace _calculate_weather_score with this:
+def _calculate_weather_score(avg_temp: float, weather_preference: str) -> float:
     """
-    Scores how well the destination temperature matches user preference.
+    Scores destination temperature against user's preference.
 
-    Args:
-        avg_temp: Current average temperature in °C
-        min_temp: User's minimum preferred temperature in °C
-
-    Returns:
-        Weather score out of 10
+    Categories:
+        cool — 5°C to 15°C
+        warm — 16°C to 24°C
+        hot  — 25°C+
     """
     if avg_temp is None:
-        return 5.0  # Neutral if no weather data
+        return 5.0
 
-    if avg_temp >= min_temp:
-        # Above minimum — bonus for warmer weather up to a point
-        bonus = min((avg_temp - min_temp) / 5, 2.0)
-        return round(min(10.0, 8.0 + bonus), 2)
+    ranges = {
+        "cool": (5,  15),
+        "warm": (16, 24),
+        "hot":  (25, 45)
+    }
+
+    low, high = ranges.get(weather_preference, (16, 24))
+
+    if low <= avg_temp <= high:
+        return 10.0  # Perfect match
     else:
-        # Below minimum — penalise proportionally
-        deficit = min_temp - avg_temp
-        return round(max(0.0, 8.0 - (deficit * 1.5)), 2)
+        # How far outside the range
+        gap = max(low - avg_temp, avg_temp - high)
+        return round(max(0.0, 10.0 - (gap * 0.5)), 2)
 
 
 def _calculate_safety_score(safety_index: float) -> float:
@@ -149,7 +154,7 @@ def _calculate_total_cost(
     Returns:
         Total estimated cost in £
     """
-    flights = (flight_cost or 0) * num_people
+    flights = (flight_cost or 0) 
     hotels  = (hotel_per_night or 0) * trip_length_days
     meals   = (avg_meal_cost or 0) * 3 * trip_length_days * num_people
     return round(flights + hotels + meals, 2)
@@ -175,7 +180,11 @@ def score_destination(
     print(f"[Recommender] Scoring {destination['name']}...")
 
     # --- Fetch live data ---
-    weather = get_weather(destination["name"])
+    weather = get_weather(
+        city=destination["name"],
+        travel_date=user_inputs["departure_date"],
+        destination_id=destination["id"]
+    )
 
     flight = get_cheapest_flight(
         origin_iata=user_inputs["origin_airport"],
@@ -205,7 +214,7 @@ def score_destination(
     vibe_score    = _calculate_vibe_score(destination, user_inputs["vibes"])
     budget_score  = _calculate_budget_score(total_cost, user_inputs["budget"])
     weather_score = _calculate_weather_score(
-        weather.get("avg_temp"), user_inputs["min_temp"]
+        weather.get("avg_temp"), user_inputs["weather_preference"]
     )
     safety_score  = _calculate_safety_score(destination.get("safety_index"))
 
@@ -280,20 +289,8 @@ def get_recommendations(
     user_inputs: dict,
     top_n: int = 5
 ) -> list[dict]:
-    """
-    Main entry point. Scores all destinations and returns top N.
-
-    Args:
-        destinations: List of destination dicts from database
-        user_inputs:  User preferences from home.py
-        top_n:        Number of recommendations to return (default 5)
-
-    Returns:
-        List of top N scored destinations sorted by final_score descending
-    """
     from datetime import datetime
 
-    # Calculate trip length in days
     dep = datetime.strptime(user_inputs["departure_date"], "%Y-%m-%d")
     ret = datetime.strptime(user_inputs["return_date"],    "%Y-%m-%d")
     trip_length_days = (ret - dep).days
@@ -301,9 +298,15 @@ def get_recommendations(
     print(f"[Recommender] Scoring {len(destinations)} destinations...")
     print(f"[Recommender] Trip length: {trip_length_days} days")
 
-    # Score all destinations
     scored = []
+    seen_names = set()  # ← track seen destinations
+
     for destination in destinations:
+        # Skip duplicates
+        if destination["name"] in seen_names:
+            continue
+        seen_names.add(destination["name"])
+
         try:
             result = score_destination(destination, user_inputs, trip_length_days)
             scored.append(result)

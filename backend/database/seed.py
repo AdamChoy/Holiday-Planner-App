@@ -1,14 +1,16 @@
 """
 seed.py
 -------
-Populates the database with initial destination data.
+Populates the database with initial destination, airport
+and climate data.
 Run this once to set up the database.
 
 Usage:
-    python -m database.seed
+    python -m backend.database.seed
 """
 
-from backend.database.db import insert_destination, insert_cost_data
+from backend.database.db import get_connection, insert_destination, insert_cost_data
+
 # ================================================================
 # Seed destinations
 # Vibe scores: 1-10 (10 = perfect match for that vibe)
@@ -237,10 +239,267 @@ COST_DATA = {
     "Krakow":    {"avg_meal_cost": 6.0,  "cost_of_living_index": 38.0, "safety_index": 70.0},
 }
 
+# ================================================================
+# UK departure airports
+# ================================================================
+AIRPORTS = [
+    {"name": "London Heathrow",       "iata_code": "LHR", "city": "London",     "region": "England"},
+    {"name": "London Gatwick",        "iata_code": "LGW", "city": "London",     "region": "England"},
+    {"name": "London Stansted",       "iata_code": "STN", "city": "London",     "region": "England"},
+    {"name": "London Luton",          "iata_code": "LTN", "city": "London",     "region": "England"},
+    {"name": "London City",           "iata_code": "LCY", "city": "London",     "region": "England"},
+    {"name": "Manchester",            "iata_code": "MAN", "city": "Manchester", "region": "England"},
+    {"name": "Birmingham",            "iata_code": "BHX", "city": "Birmingham", "region": "England"},
+    {"name": "Edinburgh",             "iata_code": "EDI", "city": "Edinburgh",  "region": "Scotland"},
+    {"name": "Glasgow",               "iata_code": "GLA", "city": "Glasgow",    "region": "Scotland"},
+    {"name": "Bristol",               "iata_code": "BRS", "city": "Bristol",    "region": "England"},
+    {"name": "Newcastle",             "iata_code": "NCL", "city": "Newcastle",  "region": "England"},
+    {"name": "Leeds Bradford",        "iata_code": "LBA", "city": "Leeds",      "region": "England"},
+    {"name": "Liverpool",             "iata_code": "LPL", "city": "Liverpool",  "region": "England"},
+    {"name": "Belfast International", "iata_code": "BFS", "city": "Belfast",    "region": "N. Ireland"},
+    {"name": "Cardiff",               "iata_code": "CWL", "city": "Cardiff",    "region": "Wales"},
+]
+
+# ================================================================
+# Climate data — historical monthly averages
+# Source: Climate-Data.org / Weather Atlas
+# ================================================================
+CLIMATE_DATA = {
+    "Barcelona": {
+        1:  {"avg_temp": 10, "avg_humidity": 72, "avg_rain_days": 5,  "description": "Cool and mild"},
+        2:  {"avg_temp": 11, "avg_humidity": 70, "avg_rain_days": 5,  "description": "Cool and mild"},
+        3:  {"avg_temp": 13, "avg_humidity": 68, "avg_rain_days": 6,  "description": "Mild"},
+        4:  {"avg_temp": 16, "avg_humidity": 66, "avg_rain_days": 7,  "description": "Warm"},
+        5:  {"avg_temp": 19, "avg_humidity": 65, "avg_rain_days": 6,  "description": "Warm"},
+        6:  {"avg_temp": 23, "avg_humidity": 62, "avg_rain_days": 4,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 26, "avg_humidity": 60, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 26, "avg_humidity": 63, "avg_rain_days": 3,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 23, "avg_humidity": 67, "avg_rain_days": 5,  "description": "Warm"},
+        10: {"avg_temp": 18, "avg_humidity": 70, "avg_rain_days": 7,  "description": "Mild"},
+        11: {"avg_temp": 13, "avg_humidity": 72, "avg_rain_days": 6,  "description": "Cool"},
+        12: {"avg_temp": 10, "avg_humidity": 73, "avg_rain_days": 5,  "description": "Cool"},
+    },
+    "Ibiza": {
+        1:  {"avg_temp": 11, "avg_humidity": 74, "avg_rain_days": 5,  "description": "Cool"},
+        2:  {"avg_temp": 12, "avg_humidity": 72, "avg_rain_days": 4,  "description": "Cool"},
+        3:  {"avg_temp": 14, "avg_humidity": 70, "avg_rain_days": 5,  "description": "Mild"},
+        4:  {"avg_temp": 17, "avg_humidity": 67, "avg_rain_days": 4,  "description": "Warm"},
+        5:  {"avg_temp": 21, "avg_humidity": 64, "avg_rain_days": 3,  "description": "Warm"},
+        6:  {"avg_temp": 25, "avg_humidity": 60, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 28, "avg_humidity": 57, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 28, "avg_humidity": 59, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 25, "avg_humidity": 63, "avg_rain_days": 4,  "description": "Warm"},
+        10: {"avg_temp": 20, "avg_humidity": 68, "avg_rain_days": 6,  "description": "Mild"},
+        11: {"avg_temp": 15, "avg_humidity": 72, "avg_rain_days": 5,  "description": "Cool"},
+        12: {"avg_temp": 12, "avg_humidity": 74, "avg_rain_days": 5,  "description": "Cool"},
+    },
+    "Mykonos": {
+        1:  {"avg_temp": 12, "avg_humidity": 73, "avg_rain_days": 8,  "description": "Cool and windy"},
+        2:  {"avg_temp": 12, "avg_humidity": 72, "avg_rain_days": 7,  "description": "Cool and windy"},
+        3:  {"avg_temp": 14, "avg_humidity": 70, "avg_rain_days": 6,  "description": "Mild"},
+        4:  {"avg_temp": 17, "avg_humidity": 66, "avg_rain_days": 4,  "description": "Warm"},
+        5:  {"avg_temp": 21, "avg_humidity": 62, "avg_rain_days": 2,  "description": "Warm and sunny"},
+        6:  {"avg_temp": 26, "avg_humidity": 55, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 28, "avg_humidity": 52, "avg_rain_days": 0,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 28, "avg_humidity": 54, "avg_rain_days": 0,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 25, "avg_humidity": 58, "avg_rain_days": 1,  "description": "Warm and sunny"},
+        10: {"avg_temp": 21, "avg_humidity": 65, "avg_rain_days": 4,  "description": "Mild"},
+        11: {"avg_temp": 17, "avg_humidity": 70, "avg_rain_days": 6,  "description": "Cool"},
+        12: {"avg_temp": 13, "avg_humidity": 73, "avg_rain_days": 8,  "description": "Cool"},
+    },
+    "Athens": {
+        1:  {"avg_temp": 10, "avg_humidity": 72, "avg_rain_days": 8,  "description": "Cool"},
+        2:  {"avg_temp": 11, "avg_humidity": 70, "avg_rain_days": 7,  "description": "Cool"},
+        3:  {"avg_temp": 14, "avg_humidity": 67, "avg_rain_days": 6,  "description": "Mild"},
+        4:  {"avg_temp": 18, "avg_humidity": 62, "avg_rain_days": 4,  "description": "Warm"},
+        5:  {"avg_temp": 23, "avg_humidity": 57, "avg_rain_days": 3,  "description": "Warm and sunny"},
+        6:  {"avg_temp": 28, "avg_humidity": 48, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 31, "avg_humidity": 44, "avg_rain_days": 0,  "description": "Very hot and sunny"},
+        8:  {"avg_temp": 31, "avg_humidity": 45, "avg_rain_days": 0,  "description": "Very hot and sunny"},
+        9:  {"avg_temp": 27, "avg_humidity": 52, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        10: {"avg_temp": 21, "avg_humidity": 62, "avg_rain_days": 5,  "description": "Mild"},
+        11: {"avg_temp": 15, "avg_humidity": 69, "avg_rain_days": 7,  "description": "Cool"},
+        12: {"avg_temp": 11, "avg_humidity": 72, "avg_rain_days": 8,  "description": "Cool"},
+    },
+    "Lisbon": {
+        1:  {"avg_temp": 12, "avg_humidity": 80, "avg_rain_days": 11, "description": "Cool and rainy"},
+        2:  {"avg_temp": 13, "avg_humidity": 78, "avg_rain_days": 9,  "description": "Cool"},
+        3:  {"avg_temp": 15, "avg_humidity": 74, "avg_rain_days": 9,  "description": "Mild"},
+        4:  {"avg_temp": 17, "avg_humidity": 70, "avg_rain_days": 8,  "description": "Warm"},
+        5:  {"avg_temp": 20, "avg_humidity": 66, "avg_rain_days": 6,  "description": "Warm and sunny"},
+        6:  {"avg_temp": 24, "avg_humidity": 60, "avg_rain_days": 3,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 27, "avg_humidity": 55, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 27, "avg_humidity": 57, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 25, "avg_humidity": 62, "avg_rain_days": 4,  "description": "Warm"},
+        10: {"avg_temp": 20, "avg_humidity": 70, "avg_rain_days": 8,  "description": "Mild"},
+        11: {"avg_temp": 15, "avg_humidity": 77, "avg_rain_days": 10, "description": "Cool"},
+        12: {"avg_temp": 12, "avg_humidity": 80, "avg_rain_days": 11, "description": "Cool and rainy"},
+    },
+    "Rome": {
+        1:  {"avg_temp": 8,  "avg_humidity": 75, "avg_rain_days": 7,  "description": "Cool"},
+        2:  {"avg_temp": 9,  "avg_humidity": 73, "avg_rain_days": 7,  "description": "Cool"},
+        3:  {"avg_temp": 12, "avg_humidity": 70, "avg_rain_days": 7,  "description": "Mild"},
+        4:  {"avg_temp": 16, "avg_humidity": 66, "avg_rain_days": 6,  "description": "Warm"},
+        5:  {"avg_temp": 20, "avg_humidity": 62, "avg_rain_days": 5,  "description": "Warm and sunny"},
+        6:  {"avg_temp": 25, "avg_humidity": 55, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 28, "avg_humidity": 50, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 27, "avg_humidity": 52, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 24, "avg_humidity": 58, "avg_rain_days": 4,  "description": "Warm"},
+        10: {"avg_temp": 18, "avg_humidity": 67, "avg_rain_days": 6,  "description": "Mild"},
+        11: {"avg_temp": 13, "avg_humidity": 73, "avg_rain_days": 8,  "description": "Cool"},
+        12: {"avg_temp": 9,  "avg_humidity": 76, "avg_rain_days": 8,  "description": "Cool"},
+    },
+    "Amsterdam": {
+        1:  {"avg_temp": 4,  "avg_humidity": 86, "avg_rain_days": 13, "description": "Cold and grey"},
+        2:  {"avg_temp": 4,  "avg_humidity": 84, "avg_rain_days": 11, "description": "Cold"},
+        3:  {"avg_temp": 7,  "avg_humidity": 80, "avg_rain_days": 11, "description": "Cool"},
+        4:  {"avg_temp": 11, "avg_humidity": 76, "avg_rain_days": 10, "description": "Mild"},
+        5:  {"avg_temp": 15, "avg_humidity": 72, "avg_rain_days": 10, "description": "Mild and pleasant"},
+        6:  {"avg_temp": 18, "avg_humidity": 71, "avg_rain_days": 10, "description": "Warm"},
+        7:  {"avg_temp": 20, "avg_humidity": 72, "avg_rain_days": 10, "description": "Warm"},
+        8:  {"avg_temp": 20, "avg_humidity": 73, "avg_rain_days": 10, "description": "Warm"},
+        9:  {"avg_temp": 17, "avg_humidity": 77, "avg_rain_days": 11, "description": "Mild"},
+        10: {"avg_temp": 12, "avg_humidity": 82, "avg_rain_days": 12, "description": "Cool"},
+        11: {"avg_temp": 7,  "avg_humidity": 86, "avg_rain_days": 13, "description": "Cold"},
+        12: {"avg_temp": 4,  "avg_humidity": 87, "avg_rain_days": 13, "description": "Cold and grey"},
+    },
+    "Prague": {
+        1:  {"avg_temp": 0,  "avg_humidity": 82, "avg_rain_days": 10, "description": "Cold and snowy"},
+        2:  {"avg_temp": 2,  "avg_humidity": 79, "avg_rain_days": 9,  "description": "Cold"},
+        3:  {"avg_temp": 7,  "avg_humidity": 74, "avg_rain_days": 9,  "description": "Cool"},
+        4:  {"avg_temp": 12, "avg_humidity": 68, "avg_rain_days": 9,  "description": "Mild"},
+        5:  {"avg_temp": 17, "avg_humidity": 67, "avg_rain_days": 11, "description": "Warm"},
+        6:  {"avg_temp": 20, "avg_humidity": 68, "avg_rain_days": 11, "description": "Warm"},
+        7:  {"avg_temp": 22, "avg_humidity": 67, "avg_rain_days": 10, "description": "Warm and sunny"},
+        8:  {"avg_temp": 22, "avg_humidity": 67, "avg_rain_days": 10, "description": "Warm and sunny"},
+        9:  {"avg_temp": 18, "avg_humidity": 71, "avg_rain_days": 8,  "description": "Mild"},
+        10: {"avg_temp": 12, "avg_humidity": 77, "avg_rain_days": 9,  "description": "Cool"},
+        11: {"avg_temp": 5,  "avg_humidity": 82, "avg_rain_days": 10, "description": "Cold"},
+        12: {"avg_temp": 1,  "avg_humidity": 84, "avg_rain_days": 11, "description": "Cold and snowy"},
+    },
+    "Budapest": {
+        1:  {"avg_temp": 1,  "avg_humidity": 80, "avg_rain_days": 9,  "description": "Cold"},
+        2:  {"avg_temp": 4,  "avg_humidity": 76, "avg_rain_days": 8,  "description": "Cold"},
+        3:  {"avg_temp": 9,  "avg_humidity": 70, "avg_rain_days": 8,  "description": "Cool"},
+        4:  {"avg_temp": 15, "avg_humidity": 64, "avg_rain_days": 8,  "description": "Mild"},
+        5:  {"avg_temp": 20, "avg_humidity": 63, "avg_rain_days": 9,  "description": "Warm"},
+        6:  {"avg_temp": 23, "avg_humidity": 63, "avg_rain_days": 9,  "description": "Warm and sunny"},
+        7:  {"avg_temp": 25, "avg_humidity": 61, "avg_rain_days": 7,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 25, "avg_humidity": 61, "avg_rain_days": 7,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 20, "avg_humidity": 66, "avg_rain_days": 6,  "description": "Warm"},
+        10: {"avg_temp": 14, "avg_humidity": 73, "avg_rain_days": 7,  "description": "Cool"},
+        11: {"avg_temp": 7,  "avg_humidity": 79, "avg_rain_days": 9,  "description": "Cold"},
+        12: {"avg_temp": 2,  "avg_humidity": 81, "avg_rain_days": 10, "description": "Cold"},
+    },
+    "Dubrovnik": {
+        1:  {"avg_temp": 9,  "avg_humidity": 73, "avg_rain_days": 11, "description": "Cool"},
+        2:  {"avg_temp": 10, "avg_humidity": 71, "avg_rain_days": 10, "description": "Cool"},
+        3:  {"avg_temp": 12, "avg_humidity": 68, "avg_rain_days": 9,  "description": "Mild"},
+        4:  {"avg_temp": 16, "avg_humidity": 64, "avg_rain_days": 7,  "description": "Warm"},
+        5:  {"avg_temp": 20, "avg_humidity": 61, "avg_rain_days": 5,  "description": "Warm and sunny"},
+        6:  {"avg_temp": 24, "avg_humidity": 56, "avg_rain_days": 3,  "description": "Hot and sunny"},
+        7:  {"avg_temp": 27, "avg_humidity": 53, "avg_rain_days": 1,  "description": "Hot and sunny"},
+        8:  {"avg_temp": 27, "avg_humidity": 54, "avg_rain_days": 2,  "description": "Hot and sunny"},
+        9:  {"avg_temp": 23, "avg_humidity": 59, "avg_rain_days": 5,  "description": "Warm"},
+        10: {"avg_temp": 18, "avg_humidity": 66, "avg_rain_days": 8,  "description": "Mild"},
+        11: {"avg_temp": 13, "avg_humidity": 71, "avg_rain_days": 11, "description": "Cool"},
+        12: {"avg_temp": 10, "avg_humidity": 74, "avg_rain_days": 12, "description": "Cool"},
+    },
+    "Paris": {
+        1:  {"avg_temp": 5,  "avg_humidity": 82, "avg_rain_days": 11, "description": "Cold and grey"},
+        2:  {"avg_temp": 6,  "avg_humidity": 79, "avg_rain_days": 9,  "description": "Cold"},
+        3:  {"avg_temp": 10, "avg_humidity": 74, "avg_rain_days": 10, "description": "Cool"},
+        4:  {"avg_temp": 13, "avg_humidity": 70, "avg_rain_days": 9,  "description": "Mild"},
+        5:  {"avg_temp": 17, "avg_humidity": 68, "avg_rain_days": 10, "description": "Warm"},
+        6:  {"avg_temp": 21, "avg_humidity": 65, "avg_rain_days": 8,  "description": "Warm and sunny"},
+        7:  {"avg_temp": 23, "avg_humidity": 63, "avg_rain_days": 7,  "description": "Warm and sunny"},
+        8:  {"avg_temp": 23, "avg_humidity": 64, "avg_rain_days": 7,  "description": "Warm and sunny"},
+        9:  {"avg_temp": 19, "avg_humidity": 68, "avg_rain_days": 8,  "description": "Mild"},
+        10: {"avg_temp": 14, "avg_humidity": 75, "avg_rain_days": 10, "description": "Cool"},
+        11: {"avg_temp": 8,  "avg_humidity": 81, "avg_rain_days": 11, "description": "Cold"},
+        12: {"avg_temp": 5,  "avg_humidity": 83, "avg_rain_days": 11, "description": "Cold and grey"},
+    },
+    "Krakow": {
+        1:  {"avg_temp": -1, "avg_humidity": 83, "avg_rain_days": 10, "description": "Cold and snowy"},
+        2:  {"avg_temp": 1,  "avg_humidity": 80, "avg_rain_days": 9,  "description": "Cold"},
+        3:  {"avg_temp": 6,  "avg_humidity": 75, "avg_rain_days": 9,  "description": "Cool"},
+        4:  {"avg_temp": 12, "avg_humidity": 69, "avg_rain_days": 9,  "description": "Mild"},
+        5:  {"avg_temp": 17, "avg_humidity": 68, "avg_rain_days": 11, "description": "Warm"},
+        6:  {"avg_temp": 21, "avg_humidity": 68, "avg_rain_days": 12, "description": "Warm"},
+        7:  {"avg_temp": 23, "avg_humidity": 67, "avg_rain_days": 11, "description": "Warm and sunny"},
+        8:  {"avg_temp": 22, "avg_humidity": 68, "avg_rain_days": 10, "description": "Warm and sunny"},
+        9:  {"avg_temp": 17, "avg_humidity": 72, "avg_rain_days": 8,  "description": "Mild"},
+        10: {"avg_temp": 11, "avg_humidity": 78, "avg_rain_days": 9,  "description": "Cool"},
+        11: {"avg_temp": 5,  "avg_humidity": 83, "avg_rain_days": 10, "description": "Cold"},
+        12: {"avg_temp": 0,  "avg_humidity": 85, "avg_rain_days": 11, "description": "Cold and snowy"},
+    },
+}
+
+
+def seed_airports():
+    """Seeds the airports table."""
+    conn = get_connection()
+    print("\nSeeding airports...")
+    try:
+        with conn.cursor() as cur:
+            for airport in AIRPORTS:
+                cur.execute("""
+                    INSERT INTO airports (name, iata_code, city, region)
+                    VALUES (%(name)s, %(iata_code)s, %(city)s, %(region)s)
+                    ON CONFLICT (iata_code) DO NOTHING
+                """, airport)
+                print(f"  ✅ {airport['name']} ({airport['iata_code']})")
+        conn.commit()
+    finally:
+        conn.close()
+    print("Airports seeded successfully.")
+
+
+def seed_climate_data():
+    """Seeds monthly climate averages for all destinations."""
+    conn = get_connection()
+    print("\nSeeding climate data...")
+    try:
+        with conn.cursor() as cur:
+            for city, months in CLIMATE_DATA.items():
+                cur.execute(
+                    "SELECT id FROM destinations WHERE name = %s", (city,)
+                )
+                row = cur.fetchone()
+                if not row:
+                    print(f"  ⚠️  {city} not found — skipped")
+                    continue
+                destination_id = row[0]
+                for month, data in months.items():
+                    cur.execute(
+                        """
+                        INSERT INTO climate_data (
+                            destination_id, month,
+                            avg_temp, avg_humidity,
+                            avg_rain_days, description
+                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (destination_id, month)
+                        DO UPDATE SET
+                            avg_temp      = EXCLUDED.avg_temp,
+                            avg_humidity  = EXCLUDED.avg_humidity,
+                            avg_rain_days = EXCLUDED.avg_rain_days,
+                            description   = EXCLUDED.description
+                    """, (
+                        destination_id, month,
+                        data["avg_temp"], data["avg_humidity"],
+                        data["avg_rain_days"], data["description"]
+                    ))
+                print(f"  ✅ {city} — 12 months seeded")
+        conn.commit()
+    finally:
+        conn.close()
+    print("Climate data seeded successfully.")
+
 
 def seed():
     """
-    Seeds the database with all destinations and cost data.
+    Seeds the database with all destinations, cost data,
+    airports and climate data.
     Safe to run multiple times — uses ON CONFLICT DO NOTHING.
     """
     print("Seeding database...")
@@ -254,6 +513,8 @@ def seed():
         else:
             print(f"  ⚠️  {dest['name']} already exists — skipped")
 
+    seed_airports()
+    seed_climate_data()
     print("\nDone! Database seeded successfully.")
 
 
